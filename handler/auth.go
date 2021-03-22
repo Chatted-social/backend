@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"github.com/Chatted-social/backend/app"
 	"github.com/Chatted-social/backend/jwt"
+	"github.com/Chatted-social/backend/storage"
 	"github.com/Chatted-social/backend/validator"
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -41,26 +43,19 @@ func (s AuthService) Register(c *fiber.Ctx) error {
 	if err := c.BodyParser(&form); err != nil {
 		return err
 	}
-	if err := Validate(&form); err != nil{
+	if err := Validate(&form); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(app.Err(err.Error()))
 	}
 
 	// removing caps, because we don't need it
 	form.Username = strings.ToLower(form.Username)
 
-	exists, err := s.db.Users.Exists(form.Username)
+	exists, err := s.db.Users.ExistsByUsername(form.Username)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return c.Status(http.StatusConflict).JSON(app.Err("username already taken"))
-	}
-	exists, err = s.db.Users.ExistsByLogin(form.Username)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return c.Status(http.StatusConflict).JSON( app.Err("login already taken"))
+		return c.Status(http.StatusConflict).JSON(app.Err("username/email already taken"))
 	}
 	encryptedPass, err := bcrypt.GenerateFromPassword([]byte(form.Password), bcrypt.MinCost)
 	if err != nil {
@@ -69,20 +64,21 @@ func (s AuthService) Register(c *fiber.Ctx) error {
 	u := storage.User{
 		Email:             form.Email,
 		Username:          form.Username,
-		FirstName:             form.FirstName,
-		LastName: form.LastName,
+		FirstName:         form.FirstName,
+		LastName:          form.LastName,
 		EncryptedPassword: string(encryptedPass),
 	}
 	err = s.db.Users.Create(u)
 	if err != nil {
 		return err
 	}
+
 	return c.Status(http.StatusCreated).JSON(u)
 }
 
 func (s AuthService) Login(c *fiber.Ctx) error {
 	var form struct {
-		Username    string `json:"username"`
+		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 	if err := c.BodyParser(&form); err != nil {
@@ -110,7 +106,7 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 	//}
 
 	token := jwt.NewWithClaims(jwt.Claims{
-		UserID: user.ID,
+		UserID: strconv.Itoa(user.ID),
 	})
 
 	t, err := token.SignedString(s.Secret)
@@ -118,7 +114,7 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 		return err
 	}
 
-	return c.Status(http.StatusOK).JSON( fiber.Map{"token": t})
+	return c.Status(http.StatusOK).JSON(fiber.Map{"token": t})
 }
 
 func (s AuthService) compareHash(password string, hash string) bool {
