@@ -24,5 +24,7 @@ Then run `go build ./cmd/apiserver` and `./apiserver`.
 ### How to run swagger:
 First, install it
 `go get -u github.com/go-swagger/go-swagger/cmd/swagger`
-then go to docs directory `cd ./docs`, then run `swagger serve -F=swagger swagger.yaml`
+then go to docs directory `cd ./docs`, then run 
+
+`swagger serve -F=swagger swagger.yaml`
     
