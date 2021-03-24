@@ -12,8 +12,6 @@ import (
 
 var secret = []byte("alskdhjasiudhqwiuhedjkahdkaskdmnknfn")
 
-var port = flag.String("port", "7070", "which port should be used for server")
-
 var PGURL = flag.String("PG_URL", os.Getenv("PG_URL"), "url to your postgres database")
 
 func main() {
@@ -36,9 +34,9 @@ func main() {
 	//	SigningKey: secret,
 	//}))
 
-	h.Register(app.Group("/api/auth"), &handler.AuthService{})
+	h.Register(app.Group("/auth"), &handler.AuthService{})
 
-	log.Fatal(app.Listen(":" + *port))
+	log.Fatal(app.Listen(":7070"))
 }
 
 func newFiber() *fiber.App {
