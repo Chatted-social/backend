@@ -6,7 +6,7 @@
 ### Run app via docker-compose:
 
 First, run `docker-compose -f docker-compose-dev.yml up -d`,
-this is will setup db for you.
+this will setup db for you.
 
 
 Then u need to connect to your container using psql and create database `chatted`
