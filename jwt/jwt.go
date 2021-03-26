@@ -14,5 +14,5 @@ func From(v interface{}) Claims {
 
 type Claims struct {
 	jwt.StandardClaims
-	UserID string `json:"usr,omitempty"`
+	UserID int `json:"usr,omitempty"`
 }
