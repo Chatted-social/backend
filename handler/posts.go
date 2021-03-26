@@ -20,7 +20,7 @@ type PostStorage struct {
 func (s PostStorage) REGISTER(h handler, g fiber.Router) {
 	s.handler = h
 	g.Post("/create", s.Create)
-	g.Patch("/update", s.Update)
+	g.Put("/update", s.Update)
 	g.Delete("/delete/:id", s.Delete)
 	g.Get("/post/:id", s.ByID)
 	g.Get("/posts/:ids", s.PostsByIDs)
@@ -32,7 +32,7 @@ type CreatePostForm struct {
 	Body  string `json:"body" validate:"required,min=3,max=255"`
 }
 
-type UpdatePatchForm struct {
+type UpdatePutForm struct {
 	ID    int    `sq:"id" json:"id"`
 	Title string `json:"title" validate:"required,min=3,max=32"`
 	Body  string `json:"body" validate:"required,min=3,max=32"`
@@ -82,7 +82,7 @@ func (s PostStorage) Create(c *fiber.Ctx) error {
 }
 
 func (s PostStorage) Update(c *fiber.Ctx) error {
-	form := UpdatePatchForm{}
+	form := UpdatePutForm{}
 
 	if err := c.BodyParser(&form); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(app.Err(err.Error()))

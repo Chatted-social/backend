@@ -8,22 +8,21 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/jwt/v2"
 	"log"
+	"os"
 )
 
 var secret = []byte("alskdhjasiudhqwiuhedjkahdkaskdmnknfn")
 
 var port = flag.String("port", "7070", "which port should be used for server")
 
-//TODO: vernutb proshloe
-//flag.String("PG_URL", os.Getenv("PG_URL"), "url to your postgres database")
-var PGURL = "host=localhost port=5432 user=admin password=admin dbname=postgres sslmode=disable"
+var PGURL = flag.String("PG_URL", os.Getenv("PG_URL"), "url to your postgres database")
 
 func main() {
 	flag.Parse()
 
 	app := newFiber()
 
-	db, err := storage.Open(PGURL)
+	db, err := storage.Open(*PGURL)
 	if err != nil {
 		log.Fatal(err)
 	}
