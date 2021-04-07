@@ -11,8 +11,9 @@ type (
 		Create(p Post) (post Post, err error)
 		Update(p Post) (post Post, err error)
 		Delete(p Post) error
-		UserPosts(id, limit, offset int) ([]Post, error)
+		PostsIn(ids []int) (posts []Post, err error)
 		ByID(id int) (Post, error)
+		UserPosts(id, limit, offset int) (posts []Post, _ error)
 	}
 
 	Posts struct {
@@ -31,7 +32,7 @@ type (
 )
 
 func (db *Posts) ByID(id int) (Post, error) {
-	const q = "SELECT * FROM posts WHERE id = $1 LIMIT 1"
+	const q = "SELECT * FROM posts WHERE id = $1"
 
 	var post Post
 	err := db.Get(&post, q, id)
@@ -75,29 +76,22 @@ func (db *Posts) Update(p Post) (post Post, err error) {
 	return post, db.Get(&post, q, p.Title, p.Body, p.ID, p.OwnerID)
 }
 
-func (db *Posts) UserPosts(id, limit, offset int) ([]Post, error) {
-	const q = "SELECT * FROM posts WHERE owner_id = $1 LIMIT $2 OFFSET $3"
+func (db *Posts) PostsIn(ids []int) (posts []Post, err error) {
+	const q = `
+		SELECT
+			*
+		FROM posts
+		WHERE id IN (?)`
 
-	var posts []Post
-
-	rows, err := db.Query(q, id, limit, offset)
-
+	query, args, err := sqlx.In(q, ids)
 	if err != nil {
 		return nil, err
 	}
 
-	for rows.Next() {
-		var post Post
-		err := rows.Scan(&post.ID, &post.OwnerID, &post.Title, &post.Body, &post.CreatedAt, &post.UpdatedAt, &post.Updated)
+	return posts, db.Select(&posts, db.Rebind(query), args...)
+}
 
-		if err != nil {
-			return nil, err
-		}
-
-		posts = append(posts, post)
-
-	}
-
-	return posts, nil
-
+func (db *Posts) UserPosts(id, limit, offset int) (posts []Post, _ error) {
+	const q = "SELECT * FROM posts WHERE owner_id = $1 LIMIT $2 OFFSET $3"
+	return posts, db.Select(&posts,q, id, limit, offset)
 }
