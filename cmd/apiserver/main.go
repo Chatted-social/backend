@@ -6,6 +6,7 @@ import (
 	"github.com/Chatted-social/backend/storage"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/Chatted-social/backend/wserver"
 	"log"
 	"os"
 )
@@ -33,6 +34,10 @@ func main() {
 	//p.Use(jwtware.New(jwtware.Config{
 	//	SigningKey: secret,
 	//}))
+
+	server := wserver.NewServer(wserver.Settings{})
+
+	app.Get("/ws", server.Listen)
 
 	h.Register(app.Group("/auth"), &handler.AuthService{})
 
