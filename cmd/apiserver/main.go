@@ -13,7 +13,7 @@ var secret = []byte("alskdhjasiudhqwiuhedjkahdkaskdmnknfn")
 
 var port = flag.String("port", "7070", "which port should be used for server")
 
-var PGURL = flag.String("PG_URL", "host=localhost port=5432 user=admin password=admin dbname=postgres sslmode=disable", "url to your postgres database")
+var PGURL = flag.String("PG_URL", os.Getenv("PG_URL"), "url to your postgres database")
 
 func main() {
 	flag.Parse()
@@ -27,11 +27,12 @@ func main() {
 	if err := db.Ping(); err != nil {
 		log.Fatal(err)
 	}
+  
 	h := handler.NewHandler(handler.Handler{DB: db})
-
+  
 	h.Register(app.Group("/api/auth"), &handler.AuthService{Secret: secret})
 	h.Register(app.Group("/api/wall"), &handler.PostStorage{Secret: secret})
-
+  
 	log.Fatal(app.Listen(":" + *port))
 }
 

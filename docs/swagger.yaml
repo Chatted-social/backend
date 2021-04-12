@@ -1,0 +1,101 @@
+swagger: 2.0.0
+info:
+  description: API for Chatted social network
+  version: 1.0.0
+  title: Chatted API
+  Host: http://127.0.0.1:7070
+tags:
+  - name: auth
+    externalDocs:
+      url: "/"
+    description: Login and Register stuff
+paths:
+
+  /login:
+    post:
+      tags:
+        - "auth"
+      parameters:
+        - in: body
+          name: body
+          description: Login user and get token
+          required: true
+          schema:
+            $ref: "#/definitions/LoginUserReq"
+      responses:
+        "200":
+          description: "successfully logged in"
+          content:
+            application/json:
+              schema:
+                $ref: "#/definitions/LoginUserRes"
+        "404":
+          description: "user not found"
+        "400":
+          description: "wrong credentials"
+
+  /register:
+    post:
+      tags:
+        - "auth"
+      parameters:
+        - in: body
+          name: body
+          description: Register a user
+          required: true
+          schema:
+            $ref: "#/definitions/UsersRegisterReq"
+      responses:
+        "201":
+          description: "User successfully registered"
+        "409":
+          description: "Username/email already taken"
+
+definitions:
+    User:
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+
+    LoginUserReq:
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required:
+        - username
+        - password
+
+    LoginUserRes:
+      properties:
+        token:
+          type: string
+
+    UsersRegisterReq:
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        username:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+      required:
+        - username
+        - password
+        - first_name
+        - last_name
+        - email
+
+servers:
+  - url: http://127.0.0.1:7070
