@@ -9,7 +9,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
@@ -106,7 +105,7 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 	//}
 
 	token := jwt.NewWithClaims(jwt.Claims{
-		UserID: strconv.Itoa(user.ID),
+		UserID: user.ID,
 	})
 
 	t, err := token.SignedString(s.Secret)

@@ -25,15 +25,15 @@ type (
 	}
 )
 
-func (u *Users) ByUsername(username string) (user User, err error) {
+func (db *Users) ByUsername(username string) (user User, err error) {
 	const q = "SELECT * FROM users WHERE username = $1"
-	err = u.Get(&user, q, username)
+	err = db.Get(&user, q, username)
 	return user, err
 }
 
-func (u *Users) ExistsByUsername(username string) (bool, error) {
+func (db *Users) ExistsByUsername(username string) (bool, error) {
 	const q = "SELECT EXISTS(SELECT * FROM USERS WHERE username = $1)"
-	row := u.QueryRow(q, username)
+	row := db.QueryRow(q, username)
 
 	var exists bool
 	err := row.Scan(&exists)
@@ -46,9 +46,9 @@ func (u *Users) ExistsByUsername(username string) (bool, error) {
 
 }
 
-func (u *Users) Create(user User) error {
+func (db *Users) Create(user User) error {
 	const q = "INSERT INTO users (email, username, first_name, last_name, password) VALUES ($1, $2, $3, $4, $5)"
-	_, err := u.Exec(q, user.Email, user.Username, user.FirstName, user.LastName, user.EncryptedPassword)
+	_, err := db.Exec(q, user.Email, user.Username, user.FirstName, user.LastName, user.EncryptedPassword)
 
 	return err
 
