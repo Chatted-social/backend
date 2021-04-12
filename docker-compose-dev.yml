@@ -1,0 +1,25 @@
+volumes:
+  postgres:
+
+services:
+  postgres:
+    image: postgres:10-alpine
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+
+  migrate:
+    build:
+      context: ./storage/migrate
+      dockerfile: Dockerfile
+    volumes:
+      - ./storage/migrate:/migrate
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: host=postgres user=postgres password=postgres dbname=chatted sslmode=disable
+    depends_on:
+      - postgres

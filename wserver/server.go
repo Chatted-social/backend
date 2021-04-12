@@ -2,11 +2,12 @@ package wserver
 
 import (
 	"encoding/json"
+	"github.com/Chatted-social/backend/app"
+	j "github.com/Chatted-social/backend/jwt"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v4"
-	"github.com/nentenpizza/werewolves/app"
-	j "github.com/nentenpizza/werewolves/jwt"
+	"github.com/fasthttp/websocket"
+	"github.com/gofiber/fiber/v2"
+	"github.com/valyala/fasthttp"
 	"log"
 	"net/http"
 	"sync"
@@ -19,7 +20,7 @@ const (
 	OnDisconnect
 )
 
-var upgrader = websocket.Upgrader{
+var upgrader = websocket.FastHTTPUpgrader{
 	ReadBufferSize:   1024,
 	WriteBufferSize:  1024,
 	HandshakeTimeout: time.Second * 60,
@@ -94,7 +95,7 @@ func (c *Conn) ReadMessage() (messageType int, p []byte, err error) {
 }
 
 func NewServer(s Settings) *Server {
-	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+	upgrader.CheckOrigin = func(r *fasthttp.RequestCtx) bool { return true }
 	if s.UseJWT && len(s.Secret) < 1 {
 		panic("wserver: secret can not be empty string if UseJWT enabled")
 	}
@@ -141,33 +142,31 @@ func (s *Server) runHandler(h HandlerFunc, c Context) {
 }
 
 // Listen is handler that upgrades http client to websocket client
-func (s *Server) Listen(c echo.Context) error {
+func (s *Server) Listen(c *fiber.Ctx) error {
 	var tok string
 	var err error
 	if s.useJWT {
-		tok = c.Param("token")
+		tok = c.Params("token")
 		if tok == "" {
-			return c.JSON(http.StatusBadRequest, app.Err("invalid token"))
+			return c.Status(http.StatusBadRequest).JSON(app.Err("invalid token"))
 		}
 		tokenx, err := jwt.ParseWithClaims(tok, &j.Claims{}, func(token *jwt.Token) (interface{}, error) {
 			return s.secret, nil
 		})
 		if err != nil {
-			return c.JSON(http.StatusBadRequest, "bad token")
+			return c.Status(http.StatusBadRequest).JSON(app.Err("bad token"))
 		}
 		if !tokenx.Valid {
-			return c.JSON(http.StatusBadRequest, "bad token")
+			return c.Status(http.StatusBadRequest).JSON(app.Err("bad token"))
 		}
 
 	}
-	ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
-	if err != nil {
-		return err
-	}
-	conn := NewConn(ws)
-	go s.keepAlive(conn, PongTimeout)
-	go s.reader(conn, tok)
-	return nil
+	err = upgrader.Upgrade(c.Context(), func(ws *websocket.Conn) {
+		conn := NewConn(ws)
+		go s.keepAlive(conn, PongTimeout)
+		go s.reader(conn, tok)
+	})
+	return err
 }
 
 func (s *Server) keepAlive(conn *Conn, timeout time.Duration) {
