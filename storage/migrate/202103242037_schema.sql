@@ -10,3 +10,7 @@ create table users(
     password varchar(60) not null,
     username varchar(10) not null
 );
+
+-- +goose Down
+
+drop table users;
