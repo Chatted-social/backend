@@ -1,3 +1,4 @@
+// tiny library for easy websocket usage
 package wserver
 
 import (
@@ -37,13 +38,18 @@ type Update struct {
 	Data      interface{} `json:"data" mapstructure:"data"`
 }
 
+
 type Settings struct {
 	// secret for jwt, pass an empty string if u don't use it
 	Secret []byte
 
 	// if true, Context.Get("token") will return token
 	UseJWT  bool
+
+	// All errors from handlers goes here
 	OnError OnErrorFunc
+
+	//
 	Claims  jwt.Claims
 }
 
@@ -55,31 +61,34 @@ type Server struct {
 	claims   jwt.Claims
 }
 
+// Conn is websocket.Conn wrapper with mutex
+// Do not use Ws without locking mutex, it can
+// cause concurrent writes issue
 type Conn struct {
-	conn *websocket.Conn
+	Ws *websocket.Conn
 	sync.Mutex
 }
 
 func NewConn(conn *websocket.Conn) *Conn {
-	return &Conn{conn: conn}
+	return &Conn{Ws: conn}
 }
 
 func (c *Conn) WriteMessage(code int, msg []byte) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.conn.WriteMessage(code, msg)
+	return c.Ws.WriteMessage(code, msg)
 }
 
 func (c *Conn) WriteJSON(v interface{}) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.conn.WriteJSON(v)
+	return c.Ws.WriteJSON(v)
 }
 
 func (c *Conn) SetPongHandler(h func(appdata string) error) {
 	c.Lock()
 	defer c.Unlock()
-	c.conn.SetPongHandler(h)
+	c.Ws.SetPongHandler(h)
 }
 
 func (c *Conn) Close() error {
@@ -115,6 +124,8 @@ func applyMiddleware(h HandlerFunc, middleware ...MiddlewareFunc) HandlerFunc {
 	return h
 }
 
+// Handle registers a new handler
+// If the client sends eventType, Server will call HandlerFunc with specific eventType
 func (s *Server) Handle(eventType interface{}, h HandlerFunc, middleware ...MiddlewareFunc) {
 	switch eventType.(type) {
 	case int:
@@ -128,6 +139,7 @@ func (s *Server) Handle(eventType interface{}, h HandlerFunc, middleware ...Midd
 	s.handlers[eventType] = h
 }
 
+// runHandler runs HandlerFunc h with Context c
 func (s *Server) runHandler(h HandlerFunc, c Context) {
 	f := func() {
 		if err := h(c); err != nil {
@@ -143,20 +155,20 @@ func (s *Server) runHandler(h HandlerFunc, c Context) {
 
 // Listen is handler that upgrades http client to websocket client
 func (s *Server) Listen(c *fiber.Ctx) error {
-	var tok string
+	var token string
 	var err error
 	if s.useJWT {
-		tok = c.Params("token")
-		if tok == "" {
+		token = c.Params("token")
+		if token == "" {
 			return c.Status(http.StatusBadRequest).JSON(app.Err("invalid token"))
 		}
-		tokenx, err := jwt.ParseWithClaims(tok, &j.Claims{}, func(token *jwt.Token) (interface{}, error) {
+		t, err := jwt.ParseWithClaims(token, &j.Claims{}, func(token *jwt.Token) (interface{}, error) {
 			return s.secret, nil
 		})
 		if err != nil {
 			return c.Status(http.StatusBadRequest).JSON(app.Err("bad token"))
 		}
-		if !tokenx.Valid {
+		if !t.Valid {
 			return c.Status(http.StatusBadRequest).JSON(app.Err("bad token"))
 		}
 
@@ -164,11 +176,13 @@ func (s *Server) Listen(c *fiber.Ctx) error {
 	err = upgrader.Upgrade(c.Context(), func(ws *websocket.Conn) {
 		conn := NewConn(ws)
 		go s.keepAlive(conn, PongTimeout)
-		go s.reader(conn, tok)
+		go s.reader(conn, token)
 	})
 	return err
 }
 
+// keepAlive will write to client PingMessage to make sure that client is alive.
+// Required by websockets documentation.
 func (s *Server) keepAlive(conn *Conn, timeout time.Duration) {
 	lastResponse := time.Now()
 	conn.SetPongHandler(func(_ string) error {
@@ -182,7 +196,7 @@ func (s *Server) keepAlive(conn *Conn, timeout time.Duration) {
 		}
 		time.Sleep((timeout * 9) / 10)
 		if time.Now().Sub(lastResponse) > timeout {
-			log.Printf("Ping don't get response, disconnecting to %s", conn.conn.LocalAddr())
+			log.Printf("Ping don't get response, disconnecting to %s", conn.Ws.LocalAddr())
 			err = conn.Close()
 			if s.OnError != nil {
 				s.OnError(err, Context{})
@@ -192,6 +206,7 @@ func (s *Server) keepAlive(conn *Conn, timeout time.Duration) {
 	}
 }
 
+// reader Listens to websocket messages, creates context and activates handlers
 func (s *Server) reader(conn *Conn, token string) {
 	ctx := Context{Conn: conn, storage: make(map[string]interface{})}
 	ctx.Set("token", token)
@@ -199,7 +214,7 @@ func (s *Server) reader(conn *Conn, token string) {
 	for {
 		ctx := Context{Conn: conn, storage: make(map[string]interface{})}
 		ctx.Set("token", token)
-		_, msg, err := conn.conn.ReadMessage()
+		_, msg, err := conn.Ws.ReadMessage()
 		if err != nil {
 			s.OnError(err, ctx)
 			s.runOnDisconnectHandler(ctx)
@@ -224,6 +239,8 @@ func (s *Server) runOnConnectHandler(ctx Context) {
 	}
 }
 
+// processUpdate converting msg to Update and puts it into Context
+// then runs handler with eventType that equals Update.EventType
 func (s *Server) processUpdate(msg []byte, c Context) {
 	u := &Update{}
 	err := json.Unmarshal(msg, u)

@@ -1,6 +1,9 @@
 package server
 
-import "github.com/Chatted-social/backend/storage"
+import (
+	"github.com/Chatted-social/backend/storage"
+	"sync"
+)
 
 type Handler struct {
 	DB     *storage.DB
@@ -10,6 +13,7 @@ type Handler struct {
 type handler struct {
 	db     *storage.DB
 	secret []byte
+	rooms sync.Map
 }
 
 func NewHandler(h Handler) *handler {

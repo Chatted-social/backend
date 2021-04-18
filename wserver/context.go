@@ -20,6 +20,7 @@ func (c *Context) Get(key string) interface{} {
 	return c.storage[key]
 }
 
+// Converts Context.Update.Data to i with mapstructure https://github.com/mitchellh/mapstructure
 func (c *Context) Bind(i interface{}) error {
 	err := mapstructure.Decode(c.Update.Data, i)
 	return err

@@ -14,7 +14,6 @@ func From(v interface{}) Claims {
 
 	var claims Claims
 	err := mapstructure.Decode(mc, &claims)
-
 	if err != nil {
 		return Claims{}
 	}
