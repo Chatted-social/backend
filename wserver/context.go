@@ -1,7 +1,7 @@
 package wserver
 
 import (
-	"github.com/mitchellh/mapstructure"
+	"encoding/json"
 )
 
 type Context struct {
@@ -20,10 +20,13 @@ func (c *Context) Get(key string) interface{} {
 	return c.storage[key]
 }
 
-// Converts Context.Update.Data to i with mapstructure https://github.com/mitchellh/mapstructure
+// Converts Context.Update.Data to i with encoding/json
 func (c *Context) Bind(i interface{}) error {
-	err := mapstructure.Decode(c.Update.Data, i)
-	return err
+	b, err := json.Marshal(c.Update.Data)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, i)
 }
 func (c *Context) Data() interface{} {
 	return c.Update.Data

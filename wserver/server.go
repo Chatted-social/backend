@@ -3,14 +3,11 @@ package wserver
 
 import (
 	"encoding/json"
-	"github.com/Chatted-social/backend/app"
 	j "github.com/Chatted-social/backend/jwt"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/fasthttp/websocket"
 	"github.com/gofiber/fiber/v2"
-	"github.com/valyala/fasthttp"
+	"github.com/gofiber/websocket/v2"
 	"log"
-	"net/http"
 	"sync"
 	"time"
 )
@@ -21,17 +18,11 @@ const (
 	OnDisconnect
 )
 
-var upgrader = websocket.FastHTTPUpgrader{
-	ReadBufferSize:   1024,
-	WriteBufferSize:  1024,
-	HandshakeTimeout: time.Second * 60,
-}
-
 var PongTimeout = time.Second * 60
 
-type HandlerFunc func(ctx Context) error
+type HandlerFunc func(ctx *Context) error
 
-type OnErrorFunc func(error, Context)
+type OnErrorFunc func(error, *Context)
 
 type Update struct {
 	EventType string      `json:"event_type" mapstructure:"event_type"`
@@ -63,7 +54,7 @@ type Server struct {
 
 // Conn is websocket.Conn wrapper with mutex
 // Do not use Ws without locking mutex, it can
-// cause concurrent writes issue
+// cause concurrent write issue
 type Conn struct {
 	Ws *websocket.Conn
 	sync.Mutex
@@ -97,14 +88,7 @@ func (c *Conn) Close() error {
 	return c.Close()
 }
 
-func (c *Conn) ReadMessage() (messageType int, p []byte, err error) {
-	c.Lock()
-	defer c.Unlock()
-	return c.ReadMessage()
-}
-
 func NewServer(s Settings) *Server {
-	upgrader.CheckOrigin = func(r *fasthttp.RequestCtx) bool { return true }
 	if s.UseJWT && len(s.Secret) < 1 {
 		panic("wserver: secret can not be empty string if UseJWT enabled")
 	}
@@ -140,7 +124,7 @@ func (s *Server) Handle(eventType interface{}, h HandlerFunc, middleware ...Midd
 }
 
 // runHandler runs HandlerFunc h with Context c
-func (s *Server) runHandler(h HandlerFunc, c Context) {
+func (s *Server) runHandler(h HandlerFunc, c *Context) {
 	f := func() {
 		if err := h(c); err != nil {
 			if s.OnError != nil {
@@ -154,31 +138,29 @@ func (s *Server) runHandler(h HandlerFunc, c Context) {
 }
 
 // Listen is handler that upgrades http client to websocket client
-func (s *Server) Listen(c *fiber.Ctx) error {
-	var token string
-	var err error
-	if s.useJWT {
-		token = c.Params("token")
-		if token == "" {
-			return c.Status(http.StatusBadRequest).JSON(app.Err("invalid token"))
-		}
-		t, err := jwt.ParseWithClaims(token, &j.Claims{}, func(token *jwt.Token) (interface{}, error) {
-			return s.secret, nil
-		})
-		if err != nil {
-			return c.Status(http.StatusBadRequest).JSON(app.Err("bad token"))
-		}
-		if !t.Valid {
-			return c.Status(http.StatusBadRequest).JSON(app.Err("bad token"))
-		}
+func (s *Server) Listen() fiber.Handler  {
+	return websocket.New(func(c *websocket.Conn) {
+		var token string
+		if s.useJWT {
+			token = c.Params("token")
+			if token == "" {
+				return
+			}
+			t, err := jwt.ParseWithClaims(token, &j.Claims{}, func(token *jwt.Token) (interface{}, error) {
+				return s.secret, nil
+			})
+			if err != nil {
+				return
+			}
+			if !t.Valid {
+				return
+			}
 
-	}
-	err = upgrader.Upgrade(c.Context(), func(ws *websocket.Conn) {
-		conn := NewConn(ws)
-		go s.keepAlive(conn, PongTimeout)
-		go s.reader(conn, token)
+		}
+			conn := NewConn(c)
+			//go s.keepAlive(conn, PongTimeout)
+			s.reader(conn, token)
 	})
-	return err
 }
 
 // keepAlive will write to client PingMessage to make sure that client is alive.
@@ -192,6 +174,7 @@ func (s *Server) keepAlive(conn *Conn, timeout time.Duration) {
 	for {
 		err := conn.WriteMessage(websocket.PingMessage, []byte("keepalive"))
 		if err != nil {
+			conn.Close()
 			return
 		}
 		time.Sleep((timeout * 9) / 10)
@@ -199,7 +182,7 @@ func (s *Server) keepAlive(conn *Conn, timeout time.Duration) {
 			log.Printf("Ping don't get response, disconnecting to %s", conn.Ws.LocalAddr())
 			err = conn.Close()
 			if s.OnError != nil {
-				s.OnError(err, Context{})
+				s.OnError(err, nil)
 			}
 			return
 		}
@@ -208,11 +191,11 @@ func (s *Server) keepAlive(conn *Conn, timeout time.Duration) {
 
 // reader Listens to websocket messages, creates context and activates handlers
 func (s *Server) reader(conn *Conn, token string) {
-	ctx := Context{Conn: conn, storage: make(map[string]interface{})}
+	ctx := &Context{Conn: conn, storage: make(map[string]interface{})}
 	ctx.Set("token", token)
 	s.runOnConnectHandler(ctx)
 	for {
-		ctx := Context{Conn: conn, storage: make(map[string]interface{})}
+		ctx := &Context{Conn: conn, storage: make(map[string]interface{})}
 		ctx.Set("token", token)
 		_, msg, err := conn.Ws.ReadMessage()
 		if err != nil {
@@ -225,14 +208,14 @@ func (s *Server) reader(conn *Conn, token string) {
 	}
 }
 
-func (s Server) runOnDisconnectHandler(ctx Context) {
+func (s Server) runOnDisconnectHandler(ctx *Context) {
 	h, ok := s.handlers[OnDisconnect]
 	if ok {
 		s.runHandler(h, ctx)
 	}
 }
 
-func (s *Server) runOnConnectHandler(ctx Context) {
+func (s *Server) runOnConnectHandler(ctx *Context) {
 	h, ok := s.handlers[OnConnect]
 	if ok {
 		s.runHandler(h, ctx)
@@ -241,7 +224,7 @@ func (s *Server) runOnConnectHandler(ctx Context) {
 
 // processUpdate converting msg to Update and puts it into Context
 // then runs handler with eventType that equals Update.EventType
-func (s *Server) processUpdate(msg []byte, c Context) {
+func (s *Server) processUpdate(msg []byte, c *Context) {
 	u := &Update{}
 	err := json.Unmarshal(msg, u)
 	if err != nil {
