@@ -1,14 +1,14 @@
 package handler
 
 import (
-	"github.com/Chatted-social/backend/app"
-	j "github.com/Chatted-social/backend/jwt"
-	"github.com/Chatted-social/backend/storage"
-	"github.com/gofiber/fiber/v2"
-	jwtware "github.com/gofiber/jwt/v2"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/Chatted-social/backend/internal/app"
+	j "github.com/Chatted-social/backend/jwt"
+	"github.com/Chatted-social/backend/storage"
+	"github.com/gofiber/fiber/v2"
 )
 
 type PostStorage struct {
@@ -23,7 +23,7 @@ func (s PostStorage) REGISTER(h handler, g fiber.Router) {
 	g.Get("/posts/:ids", s.PostsByIDs)
 	g.Get("/user/posts/:user_id", s.UserPosts)
 
-	g.Use(jwtware.New(jwtware.Config{SigningKey: s.Secret}))
+	//g.Use(jwtware.New(jwtware.Config{SigningKey: s.Secret}))
 
 	g.Post("/create", s.Create)
 	g.Put("/update", s.Update)
@@ -52,7 +52,17 @@ func (s PostStorage) Create(c *fiber.Ctx) error {
 		return err
 	}
 
-	userID := j.From(c.Locals("user")).UserID
+	sess, err := s.sessions.Get(c)
+	if err != nil {
+		return c.Status(http.StatusUnauthorized).JSON(app.Err("authorization required"))
+	}
+
+	userID := sess.Get("id").(int)
+
+	err = sess.Save()
+	if err != nil {
+		return err
+	}
 
 	p, err := s.db.Posts.Create(storage.Post{
 		Body:    form.Body,

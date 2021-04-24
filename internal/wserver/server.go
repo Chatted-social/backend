@@ -57,11 +57,24 @@ type Server struct {
 // cause concurrent write issue
 type Conn struct {
 	Ws *websocket.Conn
+	locals map[string]interface{}
 	sync.Mutex
 }
 
 func NewConn(conn *websocket.Conn) *Conn {
-	return &Conn{Ws: conn}
+	return &Conn{Ws: conn, locals: make(map[string]interface{})}
+}
+
+func (c *Conn) Set(key string, i interface{}) {
+	c.Lock()
+	defer c.Unlock()
+	c.locals[key] = i
+}
+
+func (c *Conn) Get(key string) interface{}{
+	c.Lock()
+	defer c.Unlock()
+	return c.locals[key]
 }
 
 func (c *Conn) WriteMessage(code int, msg []byte) error {
@@ -73,7 +86,10 @@ func (c *Conn) WriteMessage(code int, msg []byte) error {
 func (c *Conn) WriteJSON(v interface{}) error {
 	c.Lock()
 	defer c.Unlock()
-	return c.Ws.WriteJSON(v)
+	if c.Ws.Conn != nil{
+		return c.Ws.WriteJSON(v)
+	}
+	return nil
 }
 
 func (c *Conn) SetPongHandler(h func(appdata string) error) {
@@ -199,6 +215,11 @@ func (s *Server) reader(conn *Conn, token string) {
 		ctx.Set("token", token)
 		_, msg, err := conn.Ws.ReadMessage()
 		if err != nil {
+			s.OnError(err, ctx)
+			s.runOnDisconnectHandler(ctx)
+			return
+		}
+		if conn.Ws.Conn == nil{
 			s.OnError(err, ctx)
 			s.runOnDisconnectHandler(ctx)
 			return

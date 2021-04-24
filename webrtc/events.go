@@ -5,6 +5,7 @@ const (
 	EventTypeIceCandidate = "ice-candidate"
 	EventTypeAnswer = "answer"
 	EventTypeOffer = "offer"
+	EventTypeUserJoined = "new_user"
 )
 
 type Event struct {
@@ -18,7 +19,7 @@ type (
 		RoomID string `json:"room_id" mapstructure:"room"`
 
 		// Sends only webrtc
-		OtherUsers *Room `json:"other_users,omitempty"`
+		OtherUsers []*Client `json:"other_users,omitempty"`
 		UserID string `json:"user_id"`
 	}
 
@@ -28,21 +29,19 @@ type (
 		UserID string `json:"user_id"`
 	}
 
-	EventOffer struct {
+	EventHandshake struct {
 		Event
 
 		Target string `json:"target"`
-	}
-
-	EventAnswer struct {
-		Event
-
-		Target string `json:"target"`
+		Caller string `json:"caller"`
+		SDP interface{} `json:"sdp"`
 	}
 
 	EventIceCandidate struct {
 		Event
 
 		Target string `json:"target"`
+		From string `json:"from,omitempty"`
+		Candidate interface{} `json:"candidate"`
 	}
 )

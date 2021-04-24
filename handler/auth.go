@@ -1,16 +1,20 @@
-
 package handler
 
 import (
+	"bytes"
 	"database/sql"
-	"github.com/Chatted-social/backend/app"
-	"github.com/Chatted-social/backend/jwt"
+	"encoding/gob"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+
+	"github.com/Chatted-social/backend/internal/app"
 	"github.com/Chatted-social/backend/storage"
 	"github.com/Chatted-social/backend/validator"
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
-	"net/http"
-	"strings"
 )
 
 type AuthService struct {
@@ -68,7 +72,7 @@ func (s AuthService) Register(c *fiber.Ctx) error {
 		LastName:          form.LastName,
 		EncryptedPassword: string(encryptedPass),
 	}
-	err = s.db.Users.Create(u)
+	_, err = s.db.Users.Create(u)
 	if err != nil {
 		return err
 	}
@@ -105,16 +109,28 @@ func (s AuthService) Login(c *fiber.Ctx) error {
 	//	return c.JSON(http.StatusForbidden, app.Err("user is restricted"))
 	//}
 
-	token := jwt.NewWithClaims(jwt.Claims{
-		UserID: user.ID,
+	sess, err := s.createSession(map[string]interface{}{
+		"email":      user.Email,
+		"username":   user.Username,
+		"first_name": user.FirstName,
+		"last_name":  user.LastName,
+		"id":         user.ID,
 	})
-
-	t, err := token.SignedString(s.Secret)
 	if err != nil {
 		return err
 	}
 
-	return c.Status(http.StatusOK).JSON(fiber.Map{"token": t})
+	sessID := uuid.New().String()
+	err = s.cache.Set(sessID, sess, s.sessions.Expiration)
+	if err != nil {
+		return err
+	}
+
+	c.Cookie(&fiber.Cookie{Name: s.sessions.CookieName,
+		Value:   sessID,
+		Expires: time.Now().Add(time.Hour),
+		Path:    "/"})
+	return c.Status(http.StatusOK).JSON(app.Ok())
 }
 
 func (s AuthService) compareHash(password string, hash string) bool {
@@ -123,4 +139,16 @@ func (s AuthService) compareHash(password string, hash string) bool {
 		return false
 	}
 	return true
+}
+
+func (s AuthService) createSession(info map[string]interface{}) ([]byte, error) {
+	var buff = new(bytes.Buffer)
+
+	enc := gob.NewEncoder(buff)
+	err := enc.Encode(info)
+	if err != nil {
+		return nil, err
+	}
+
+	return buff.Bytes(), nil
 }

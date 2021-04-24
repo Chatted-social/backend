@@ -11,6 +11,11 @@ create table users(
     username varchar(10) not null
 );
 
+create table sessions(
+    key varchar(64) primary key not null ,
+    data bytea not null
+);
+
 -- +goose Down
 
 drop table users;

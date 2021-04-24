@@ -1,11 +1,15 @@
 package storage
 
 import (
+	"context"
+	"time"
+	"unicode"
+
 	"github.com/fatih/structs"
+	"github.com/go-redis/redis/v8"
 	_ "github.com/jackc/pgx/stdlib"
 	"github.com/jmoiron/sqlx"
 	"github.com/jmoiron/sqlx/reflectx"
-	"unicode"
 )
 
 func init() {
@@ -17,6 +21,26 @@ type DB struct {
 	*sqlx.DB
 	Users UsersStorage
 	Posts PostStorage
+}
+
+type RedisCache struct {
+	*redis.Client
+}
+
+func (r RedisCache) Get(key string) ([]byte, error) {
+	return r.Client.Get(context.Background(), key).Bytes()
+}
+
+func (r RedisCache) Set(key string, val []byte, ttl time.Duration) error {
+	return r.Client.Set(context.Background(), key, val, ttl).Err()
+}
+
+func (r RedisCache) Delete(key string) error {
+	return r.Delete(key)
+}
+
+func (r RedisCache) Reset() error {
+	return r.Reset()
 }
 
 func Open(url string) (*DB, error) {
@@ -34,6 +58,17 @@ func Open(url string) (*DB, error) {
 		DB:    db,
 		Users: &Users{DB: db},
 		Posts: &Posts{DB: db},
+	}, nil
+}
+
+func NewRedisCache(opt *redis.Options) (*RedisCache, error) {
+	client := redis.NewClient(opt)
+
+	if _, err := client.Ping(context.Background()).Result(); err != nil {
+		return nil, err
+	}
+	return &RedisCache{
+		Client: client,
 	}, nil
 }
 

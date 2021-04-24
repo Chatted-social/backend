@@ -3,7 +3,7 @@ package webrtc
 import (
 	"errors"
 	"fmt"
-	"github.com/Chatted-social/backend/wserver"
+	"github.com/Chatted-social/backend/internal/wserver"
 	"github.com/google/uuid"
 )
 
@@ -14,11 +14,19 @@ func (h *handler) OnJoinRoom(c *wserver.Context) error {
 		return err
 	}
 
-	id := uuid.New().String()
+	id, ok := c.Conn.Get("id").(string)
+	if ok {
+		if id != "" {
+			return errors.New("webrtc: client already exists")
+		}
+	}
+
+	id = uuid.New().String()
+	c.Conn.Set("id", id)
 
 	room := h.rooms.Read(form.RoomID)
 	if room == nil{
-		room = &Room{items: make([]*Client, 1, 1)}
+		room = &Room{items: make([]*Client, 0, 2)}
 		h.rooms.Write(form.RoomID, room)
 	}
 
@@ -27,14 +35,15 @@ func (h *handler) OnJoinRoom(c *wserver.Context) error {
 	room.Lock()
 	for _, u := range room.items{
 		if u != nil {
-			u.Conn.WriteJSON(&EventUserJoined{UserID: id})
+			u.Conn.WriteJSON(&wserver.Update{ EventType: EventTypeUserJoined, Data: &EventUserJoined{UserID: id}})
 		}
 	}
 	room.Unlock()
 
 	room.Append(cl)
+	c.Conn.Set("room", form.RoomID)
 
-	form.OtherUsers = room
+	form.OtherUsers = room.items
 	form.UserID = id
 
 	h.clients.Write(id,cl )
@@ -43,7 +52,7 @@ func (h *handler) OnJoinRoom(c *wserver.Context) error {
 }
 
 func (h *handler) OnOffer(c *wserver.Context) error {
-	var form = EventOffer{}
+	var form = EventHandshake{}
 
 	if err := c.Bind(&form); err != nil{
 		return err
@@ -57,7 +66,7 @@ func (h *handler) OnOffer(c *wserver.Context) error {
 }
 
 func (h *handler) OnAnswer(c *wserver.Context) error {
-	var form = EventAnswer{}
+	var form = EventHandshake{}
 
 	if err := c.Bind(&form); err != nil{
 		return err
@@ -73,11 +82,9 @@ func (h *handler) OnAnswer(c *wserver.Context) error {
 
 func (h *handler) OnIceCandidate(c *wserver.Context) error {
 	var form = EventIceCandidate{}
-
 	if err := c.Bind(&form); err != nil{
 		return err
 	}
-
 	target := h.clients.Read(form.Target)
 	if target == nil{
 		return errors.New(fmt.Sprintf("webrtc: client with id %s does not exists", form.Target))

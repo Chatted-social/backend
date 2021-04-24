@@ -1,8 +1,8 @@
 package webrtc
 
 import (
+	"github.com/Chatted-social/backend/internal/wserver"
 	"github.com/Chatted-social/backend/storage"
-	"github.com/Chatted-social/backend/wserver"
 	"sync"
 )
 
@@ -19,7 +19,7 @@ func NewClients() *Clients {
 
 type Client struct {
 	*wserver.Conn `json:"-"`
-	ID string `json:"id"`
+	ID            string `json:"id"`
 }
 
 func (r *Clients) Read(key string) *Client {
@@ -52,9 +52,19 @@ func (r *Room) Append(c *Client)  {
 	r.items = append(r.items, c)
 }
 
+func (r *Room) Delete(id string)  {
+	r.Lock()
+	defer r.Unlock()
+	for i, cl := range r.items {
+		if cl.ID == id {
+			r.items = append(r.items[:i], r.items[i+1:]...)
+		}
+	}
+}
+
 type Rooms struct {
 	rms map[string]*Room
-	sync.Mutex
+	sync.RWMutex
 }
 
 func (r *Rooms) Read(key string) *Room {
@@ -82,12 +92,10 @@ func NewRooms() *Rooms{
 
 type Handler struct {
 	DB     *storage.DB
-	Secret []byte
 }
 
 type handler struct {
 	db     *storage.DB
-	secret []byte
 	rooms *Rooms
 	clients *Clients
 }
@@ -95,7 +103,6 @@ type handler struct {
 func NewHandler(h Handler) *handler {
 	return &handler{
 		db:     h.DB,
-		secret: h.Secret,
 		rooms: NewRooms(),
 		clients: NewClients(),
 	}

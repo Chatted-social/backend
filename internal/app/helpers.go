@@ -1,6 +1,11 @@
 package app
 
-import "strconv"
+import (
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/logger"
+	"strconv"
+)
 
 func Ok() map[string]bool {
 	return map[string]bool{"ok": true}
@@ -17,4 +22,13 @@ func StringSliceToInt(slice []string) (r []int) {
 		}
 	}
 	return
+}
+
+func NewFiber() *fiber.App {
+	app := fiber.New()
+
+	app.Use(cors.New())
+	app.Use(logger.New())
+
+	return app
 }

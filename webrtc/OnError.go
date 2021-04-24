@@ -1,7 +1,7 @@
 package webrtc
 
 import (
-	"github.com/Chatted-social/backend/wserver"
+	"github.com/Chatted-social/backend/internal/wserver"
 	"log"
 )
 

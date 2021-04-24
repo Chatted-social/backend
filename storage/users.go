@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"time"
+
 	"github.com/jmoiron/sqlx"
 )
 
@@ -8,7 +10,7 @@ type (
 	UsersStorage interface {
 		ByUsername(string) (User, error)
 		ExistsByUsername(string) (bool, error)
-		Create(user User) error
+		Create(user User) (int, error)
 	}
 
 	Users struct {
@@ -16,12 +18,14 @@ type (
 	}
 
 	User struct {
-		ID                int    `sq:"id" json:"-"`
-		Email             string `sq:"email" json:"email"`
-		Username          string `sq:"username" json:"username"`
-		FirstName         string `sq:"first_name" json:"first_name"`
-		LastName          string `sq:"last_name" json:"last_name"`
-		EncryptedPassword string `sq:"password" json:"-" db:"password"`
+		CreatedAt         time.Time `sq:"created_at" json:"created_at"`
+		UpdatedAt         time.Time `sq:"updated_at" json:"updated_at"`
+		ID                int       `sq:"id" json:"-"`
+		Email             string    `sq:"email" json:"email"`
+		Username          string    `sq:"username" json:"username"`
+		FirstName         string    `sq:"first_name" json:"first_name"`
+		LastName          string    `sq:"last_name" json:"last_name"`
+		EncryptedPassword string    `sq:"password" json:"-" db:"password"`
 	}
 )
 
@@ -46,10 +50,19 @@ func (db *Users) ExistsByUsername(username string) (bool, error) {
 
 }
 
-func (db *Users) Create(user User) error {
-	const q = "INSERT INTO users (email, username, first_name, last_name, password) VALUES ($1, $2, $3, $4, $5)"
-	_, err := db.Exec(q, user.Email, user.Username, user.FirstName, user.LastName, user.EncryptedPassword)
+func (db *Users) Create(user User) (int, error) {
+	const q = `INSERT INTO users (email, username, first_name, last_name, password) VALUES
+    ($1, $2, $3, $4, $5) RETURNING id`
 
-	return err
+	rows, err := db.Query(q, user.Email, user.Username, user.FirstName, user.LastName, user.EncryptedPassword)
+	if err != nil {
+		return 0, err
+	}
 
+	var id int
+	rows.Next()
+
+	err = rows.Scan(&id)
+
+	return 0, err
 }

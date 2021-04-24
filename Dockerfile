@@ -16,8 +16,8 @@ FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
 
-COPY --from=builder /app/main .
-COPY --from=builder /app/.env .
+COPY --from=builder /internal/app/main .
+COPY --from=builder /internal/app/.env .
 
 EXPOSE 7070
 
