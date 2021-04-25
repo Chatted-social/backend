@@ -33,9 +33,8 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	log.Println(*redisAddr)
 	cache, err := storage.NewRedisCache(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     *redisAddr,
 		DB:       0,
 		Password: "",
 	})
