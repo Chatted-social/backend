@@ -49,8 +49,9 @@ func main() {
 
 	h := handler.NewHandler(handler.Handler{DB: db, RedisCache: cache, SessionsStore: store})
 
-	h.Register(app.Group("/api/auth"), &handler.AuthService{Secret: secret})
-	h.Register(app.Group("/api/wall"), &handler.PostStorage{Secret: secret})
+	v1 := app.Group("/v1")
+	h.Register(v1.Group("/api/auth"), &handler.AuthService{Secret: secret})
+	h.Register(v1.Group("/api/wall"), &handler.PostStorage{Secret: secret})
 
 	log.Fatal(app.Listen(":" + *port))
 }
