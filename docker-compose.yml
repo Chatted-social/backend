@@ -1,0 +1,31 @@
+version: "3.3"
+
+services:
+  database:
+    image: library/postgres
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=admin
+
+  apiserver:
+    build:
+      context: ./.
+      dockerfile: ./images/apiserver/Dockerfile
+    ports:
+      - 7070:7070
+    environment:
+      - PG_URL=host=database user=admin password=admin dbname=postgres sslmode=disable
+
+  migrate:
+    build:
+      context: ./.
+      dockerfile: ./images/goose/Dockerfile
+    volumes:
+      - ./storage/migrate:/migrate:ro
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: host=database user=admin password=admin dbname=postgres sslmode=disable
+    depends_on:
+      - database

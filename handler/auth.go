@@ -7,6 +7,7 @@ import (
 	"github.com/Chatted-social/backend/storage"
 	"github.com/Chatted-social/backend/validator"
 	"github.com/gofiber/fiber/v2"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"strings"
@@ -49,13 +50,18 @@ func (s AuthService) Register(c *fiber.Ctx) error {
 	// removing caps, because we don't need it
 	form.Username = strings.ToLower(form.Username)
 
-	exists, err := s.db.Users.ExistsByUsername(form.Username)
+	existsUsername, err := s.db.Users.ExistsByUsername(form.Username)
 	if err != nil {
 		return err
 	}
-	if exists {
-		return c.Status(http.StatusConflict).JSON(app.Err("username/email already taken"))
+	existsEmail, err := s.db.Users.ExistsByEmail(form.Email)
+	if err != nil {
+		return err
 	}
+	if existsEmail || existsUsername {
+		return c.Status(http.StatusBadRequest).JSON(app.Err("username or email is already taken"))
+	}
+
 	encryptedPass, err := bcrypt.GenerateFromPassword([]byte(form.Password), bcrypt.MinCost)
 	if err != nil {
 		return err
@@ -72,6 +78,9 @@ func (s AuthService) Register(c *fiber.Ctx) error {
 		return err
 	}
 
+	log.WithFields(log.Fields{
+		"ip_address": c.IP(),
+	}).Debugf("created account %s(%s)", u.Username, u.Email)
 	return c.Status(http.StatusCreated).JSON(u)
 }
 

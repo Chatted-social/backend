@@ -1,6 +1,10 @@
 package app
 
-import "strconv"
+import (
+	"github.com/Chatted-social/backend/storage"
+	"regexp"
+	"strconv"
+)
 
 func Ok() map[string]bool {
 	return map[string]bool{"ok": true}
@@ -17,4 +21,37 @@ func StringSliceToInt(slice []string) (r []int) {
 		}
 	}
 	return
+}
+
+func UsernameExists(db *storage.DB, u string) (bool, error) {
+
+	if u == "" {
+		return false, nil
+	}
+
+	user, err := db.Users.ExistsByUsername(u)
+
+	if err != nil {
+		return false, err
+	}
+
+	channel, err := db.Channels.ExistsByUsername(u)
+
+	if err != nil {
+		return false, err
+	}
+
+	return user || channel, nil
+
+}
+
+func UsernameValidator(u string) bool {
+	var re = regexp.MustCompile(`^[a-zA-Z]+([_ -]?[a-zA-Z0-9])*$`)
+
+	if len(re.FindStringIndex(u)) > 0 {
+		return true
+	}
+
+	return false
+
 }
